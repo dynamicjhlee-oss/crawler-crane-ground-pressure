@@ -1,0 +1,423 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>크롤러 크레인 접지압 검토 (자동 재계산)</title>
+<style>
+  :root{
+    --ink:#1a1f29; --sub:#5b6675; --line:#d8dee8; --soft:#eef2f7;
+    --accent:#1b4f8a; --accent2:#0e7a52; --warn:#b3541e; --bg:#f4f6fa;
+    --hi:#fff7e0; --hiline:#e6c14a;
+  }
+  *{box-sizing:border-box}
+  body{
+    margin:0; background:var(--bg); color:var(--ink);
+    font-family:"Malgun Gothic","맑은 고딕",-apple-system,"Segoe UI",sans-serif;
+    line-height:1.6; font-size:15px;
+  }
+  .wrap{max-width:980px; margin:0 auto; padding:24px 20px 80px;}
+  header.doc{
+    background:linear-gradient(135deg,var(--accent),#10355f);
+    color:#fff; border-radius:14px; padding:26px 28px; margin-bottom:22px;
+    box-shadow:0 6px 24px rgba(16,53,95,.25);
+  }
+  header.doc h1{margin:0 0 6px; font-size:24px; letter-spacing:-.3px;}
+  header.doc .meta{font-size:13px; opacity:.92; line-height:1.7;}
+  header.doc .meta b{color:#ffe28a;}
+
+  .card{
+    background:#fff; border:1px solid var(--line); border-radius:12px;
+    padding:22px 24px; margin:18px 0; box-shadow:0 2px 8px rgba(20,30,50,.04);
+  }
+  h2{font-size:19px; margin:0 0 14px; padding-bottom:8px;
+     border-bottom:2px solid var(--accent); color:var(--accent);}
+  h3{font-size:15.5px; margin:18px 0 8px; color:#243; }
+  p{margin:8px 0;}
+  .muted{color:var(--sub); font-size:13.5px;}
+
+  /* ===== Calculator ===== */
+  .calc{
+    background:linear-gradient(180deg,#fbfdff,#eef4fb);
+    border:1px solid #c5d6ea;
+  }
+  .calc h2{border-color:var(--accent2); color:var(--accent2);}
+  .inputs{
+    display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr));
+    gap:14px; margin:6px 0 18px;
+  }
+  .field{display:flex; flex-direction:column; gap:4px;}
+  .field label{font-size:12.5px; color:var(--sub); font-weight:600;}
+  .field .u{color:#9aa6b6; font-weight:400;}
+  .field input,.field select{
+    padding:9px 10px; border:1px solid #b9c6d8; border-radius:8px;
+    font-size:15px; background:#fff; color:var(--ink);
+  }
+  .field input:focus,.field select:focus{
+    outline:none; border-color:var(--accent2); box-shadow:0 0 0 3px rgba(14,122,82,.13);
+  }
+  .btns{display:flex; gap:10px; margin-bottom:6px;}
+  button{
+    cursor:pointer; border:none; border-radius:8px; padding:9px 16px;
+    font-size:14px; font-weight:600;
+  }
+  .btn-reset{background:#e6ebf2; color:#33424f;}
+  .btn-reset:hover{background:#d7deea;}
+  .btn-print{background:var(--accent); color:#fff;}
+  .btn-print:hover{background:#163f70;}
+
+  .results{
+    display:grid; grid-template-columns:repeat(auto-fit,minmax(160px,1fr));
+    gap:12px; margin-top:14px;
+  }
+  .res{
+    background:#fff; border:1px solid #d3dde9; border-radius:10px;
+    padding:12px 14px;
+  }
+  .res .k{font-size:12px; color:var(--sub);}
+  .res .v{font-size:20px; font-weight:700; color:var(--accent); margin-top:2px;}
+  .res .v small{font-size:12px; color:var(--sub); font-weight:500;}
+  .res.star{background:var(--hi); border-color:var(--hiline);}
+  .res.star .v{color:var(--warn);}
+
+  /* ===== Tables ===== */
+  table{border-collapse:collapse; width:100%; margin:10px 0; font-size:13.8px;}
+  th,td{border:1px solid var(--line); padding:7px 10px; text-align:left; vertical-align:top;}
+  thead th{background:var(--soft); color:#33424f; font-weight:700;}
+  td.num,th.num{text-align:right; font-variant-numeric:tabular-nums;}
+  tr.hi td{background:var(--hi); font-weight:700;}
+  tbody tr:nth-child(even) td{background:#fafcfe;}
+
+  .formula{
+    background:#0f1b2d; color:#e7eef7; border-radius:10px; padding:14px 16px;
+    font-family:"Consolas","D2Coding",monospace; font-size:13px; line-height:1.7;
+    overflow-x:auto; white-space:pre; margin:10px 0;
+  }
+  .formula .c{color:#7fd1a8;}
+  .formula .lead{color:#ffd66b;}
+
+  blockquote{
+    margin:12px 0; padding:10px 16px; background:var(--soft);
+    border-left:4px solid var(--accent); border-radius:0 8px 8px 0; color:#33424f;
+  }
+  blockquote.concl{background:var(--hi); border-color:var(--hiline);}
+  blockquote.concl b{color:var(--warn); font-size:17px;}
+  .note{font-size:13px; color:var(--sub);}
+  ol,ul{margin:8px 0 8px 4px; padding-left:22px;}
+  li{margin:4px 0;}
+  .live{color:var(--accent2); font-weight:700;}
+  footer{margin-top:30px; text-align:center; color:#9aa6b6; font-size:12px;}
+
+  @media print{
+    body{background:#fff; font-size:11.5px;}
+    .wrap{max-width:none; padding:0;}
+    .card{box-shadow:none; border-color:#bbb; break-inside:avoid; margin:10px 0;}
+    header.doc{box-shadow:none; -webkit-print-color-adjust:exact; print-color-adjust:exact;}
+    .btns,.no-print{display:none !important;}
+    .pagebreak{break-before:page;}
+    th,td,.res,.formula,header.doc,blockquote{
+      -webkit-print-color-adjust:exact; print-color-adjust:exact;}
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header class="doc">
+    <h1>크롤러 크레인 접지압(지반 작용하중) 검토</h1>
+    <div class="meta">
+      작성일 <b>2026-06-17</b> &nbsp;·&nbsp; 적용기준 <b>KOSHA GUIDE C-99-2015</b> 「이동식 크레인 양중작업의 안정성 검토 지침」 7.2 (가) [방법1]<br>
+      장비 <b>Liebherr LR 1400/2</b> (400톤급) &nbsp;·&nbsp; 단위 <b>kN/m²</b> (1 MPa = 1,000 kN/m², 1 N/cm² = 10 kN/m²)
+    </div>
+  </header>
+
+  <!-- ================= 자동 계산기 ================= -->
+  <section class="card calc no-print-border">
+    <h2>⚙ 자동 재계산기</h2>
+    <p class="muted">입력값을 바꾸면 접지하중·접지압이 즉시 다시 계산됩니다. 기준식은 KOSHA C-99-2015 [방법1](크롤러 크레인)입니다.</p>
+    <div class="inputs">
+      <div class="field">
+        <label>인양물 G <span class="u">(ton)</span></label>
+        <input type="number" id="G" value="63" step="1" min="0">
+      </div>
+      <div class="field">
+        <label>크레인 자중 W <span class="u">(ton)</span></label>
+        <input type="number" id="W" value="330" step="1" min="0">
+      </div>
+      <div class="field">
+        <label>접지길이 L <span class="u">(m)</span></label>
+        <input type="number" id="L" value="9.34" step="0.01" min="0">
+      </div>
+      <div class="field">
+        <label>슈(패드)폭 b <span class="u">(m)</span></label>
+        <select id="b">
+          <option value="1.2" selected>1.2 (표준)</option>
+          <option value="1.5">1.5 (옵션)</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>충격하중계수 <span class="u">(–)</span></label>
+        <input type="number" id="imp" value="1.3" step="0.05" min="1">
+      </div>
+    </div>
+    <div class="btns no-print">
+      <button class="btn-reset" onclick="resetVals()">기본값 복원</button>
+      <button class="btn-print" onclick="window.print()">인쇄 / PDF 저장</button>
+    </div>
+
+    <div class="results">
+      <div class="res"><div class="k">접지면적 A (한쪽 궤도)</div><div class="v"><span id="r_A">–</span> <small>m²</small></div></div>
+      <div class="res"><div class="k">총 작용하중 V = W + W1</div><div class="v"><span id="r_V">–</span> <small>kN</small></div></div>
+      <div class="res"><div class="k">최대접지하중 Pmax (충격 미고려)</div><div class="v"><span id="r_pno">–</span> <small>kN</small></div></div>
+      <div class="res"><div class="k">최대접지하중 Pmax (충격 고려)</div><div class="v"><span id="r_pimp">–</span> <small>kN</small></div></div>
+      <div class="res"><div class="k">주행시 q₀</div><div class="v"><span id="r_qo">–</span> <small>kN/m²</small></div></div>
+      <div class="res star"><div class="k">★ 작업시 q₁ (붐⊥궤도) — 지배</div><div class="v"><span id="r_q1">–</span> <small>kN/m²</small></div></div>
+      <div class="res"><div class="k">붐 45° 전면 q₃</div><div class="v"><span id="r_q3">–</span> <small>kN/m²</small></div></div>
+      <div class="res"><div class="k">붐 45° 후면 q₄</div><div class="v"><span id="r_q4">–</span> <small>kN/m²</small></div></div>
+    </div>
+  </section>
+
+  <!-- ================= 1. 개요 ================= -->
+  <section class="card">
+    <h2>1. 검토 개요</h2>
+    <table>
+      <tbody>
+        <tr><th>장비</th><td>Liebherr <b>LR 1400/2</b> 크롤러 크레인 (400톤급)</td></tr>
+        <tr><th>인양물</th><td>거더 <b>63 ton</b> (줄걸이용구·훅블록 등 부가하중 포함)</td></tr>
+        <tr><th>작업반경(팔거리)</th><td><b>12 m</b></td></tr>
+        <tr><th>자중 구성</th><td>풀 카운터웨이트(선회체 155t + 중앙 43t), 데릭 미사용 — 보수적 적용</td></tr>
+        <tr><th>검토 항목</th><td>접지압(최대접지하중·최대접지압) 산정</td></tr>
+      </tbody>
+    </table>
+    <blockquote><b>참고 — 양중 가능성:</b> S-system 하중표상 반경 12m 정격은 약 99~161t(붐 21~77m)로, 63t 거더@12m는 정격 이내(예: S 35m 붐 → 12m에서 152t).</blockquote>
+  </section>
+
+  <!-- ================= 2. 산정식 ================= -->
+  <section class="card pagebreak">
+    <h2>2. 적용 산정식 (방법1 : 크롤러 크레인)</h2>
+    <p>크롤러 크레인은 무한궤도로 등분포 접지하므로 KOSHA 지침 <b>[방법1]</b>을 적용한다. (방법2·3은 아웃트리거식 트럭/전지형 크레인 대상이므로 본 건 부적합)</p>
+    <div class="formula"><span class="c">공통    :</span> V = W + W1                    (총 작용하중, kN)
+
+<span class="lead">[최대접지하중]</span>
+ 충격 미고려  Pmax = V × 0.7              (kN)
+ 충격 고려    Pmax = V × 0.7 × 1.3        (kN)
+
+<span class="lead">[접지압]</span>  (충격계수 1.3 포함)
+ 주행시            qo = 1.3 × V / (2 × A)              (kN/m²)
+ 작업시(붐⊥궤도)  q1 = 1.3 × V / (0.6 × A)            (kN/m²)  ← 지배(최대)
+ 붐 45° 전면       q3 = 1.3 × V × 0.7 × 2 / (0.9 × A)  (kN/m²)
+ 붐 45° 후면       q4 = 1.3 × V × 0.3 × 2 / (0.9 × A)  (kN/m²)</div>
+    <table>
+      <thead><tr><th>기호</th><th>의미</th><th>비고</th></tr></thead>
+      <tbody>
+        <tr><td>W</td><td>크레인 차체 자중 (kN)</td><td>카운터웨이트·붐 구성에 따라 변동</td></tr>
+        <tr><td>W1</td><td>인양물 중량 (kN)</td><td>부가하중(훅·줄걸이) 포함</td></tr>
+        <tr><td>A</td><td>한쪽 무한궤도의 접지면적 (m²)</td><td>A = 접지길이 L × 슈폭 b</td></tr>
+        <tr><td>1.3</td><td>충격하중계수</td><td>지침 적용</td></tr>
+        <tr><td>0.6L / 0.9L</td><td>접지하중 적용길이</td><td>부분 등변분포 반영</td></tr>
+      </tbody>
+    </table>
+    <p class="note">※ 작업반경(R=12m)은 방법1 산정식에 직접 들어가지 않으며(80/20 하중분담률로 최악조건 포괄), 정격 인양능력 확인용으로 사용한다.</p>
+  </section>
+
+  <!-- ================= 3. 입력 제원 ================= -->
+  <section class="card pagebreak">
+    <h2>3. 입력 제원</h2>
+    <h3>3.1 무한궤도 제원 (LR 1400/2 치수도)</h3>
+    <table>
+      <thead><tr><th>항목</th><th class="num">값</th><th>출처</th></tr></thead>
+      <tbody>
+        <tr><td>무한궤도 슈(패드) 폭 b</td><td class="num"><b>1.2 m</b> (옵션 1.5m)</td><td>카탈로그 본문/치수도 1200(1500)</td></tr>
+        <tr><td>무한궤도 접지길이 L</td><td class="num"><b>9.34 m</b></td><td>측면 치수도 9340mm (전장 10385mm)</td></tr>
+        <tr><td>궤도 중심간격(게이지)</td><td class="num">7.5 m</td><td>평면 치수도 7500 (전폭 8700)</td></tr>
+        <tr class="hi"><td>한쪽 궤도 접지면적 A = L × b</td><td class="num">9.34 × 1.2 = 11.21 m²</td><td></td></tr>
+      </tbody>
+    </table>
+
+    <h3>3.2 자중 W 산정 (풀 카운터웨이트, 데릭 미사용 — 보수적)</h3>
+    <table>
+      <thead><tr><th>구성품</th><th class="num">중량 (ton)</th></tr></thead>
+      <tbody>
+        <tr><td>무한궤도 2조 (Raupenträger 27.7t × 2)</td><td class="num">55.4</td></tr>
+        <tr><td>카보디/중앙부 (Raupenmittelteil)</td><td class="num">17.5</td></tr>
+        <tr><td>상부선회체 (Drehbühne + Winde IV)</td><td class="num">33.0</td></tr>
+        <tr><td>보조 윈치 (Winde I/II)</td><td class="num">4.2</td></tr>
+        <tr><td>중앙 발라스트 (Zentralballast)</td><td class="num">43.0</td></tr>
+        <tr><td>선회체 카운터웨이트 (Drehbühnenballast, 최대)</td><td class="num">155.0</td></tr>
+        <tr><td>메인붐 S (약 35m, 추정)</td><td class="num">약 20.0</td></tr>
+        <tr class="hi"><td>합계 자중 W</td><td class="num">≈ 330 ton</td></tr>
+      </tbody>
+    </table>
+
+    <h3>3.3 하중 환산 (g = 9.81 m/s²)</h3>
+    <table>
+      <thead><tr><th>기호</th><th class="num">값 (ton)</th><th class="num">값 (kN)</th></tr></thead>
+      <tbody>
+        <tr><td>W (자중)</td><td class="num">330</td><td class="num"><b>3,237.3</b></td></tr>
+        <tr><td>W1 (인양물)</td><td class="num">63</td><td class="num"><b>618.0</b></td></tr>
+        <tr class="hi"><td>V = W + W1</td><td class="num">393</td><td class="num"><b>3,855.3</b></td></tr>
+        <tr><td>1.3 × V</td><td class="num">—</td><td class="num"><b>5,011.9</b></td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <!-- ================= 4. 계산 결과 ================= -->
+  <section class="card pagebreak">
+    <h2>4. 계산 결과 (충격하중 1.3 고려)</h2>
+    <h3>4.1 최대접지하중 Pmax</h3>
+    <table>
+      <thead><tr><th>구분</th><th>계산</th><th class="num">결과</th></tr></thead>
+      <tbody>
+        <tr><td>충격 미고려</td><td>3,855.3 × 0.7</td><td class="num"><b>2,698.7 kN</b></td></tr>
+        <tr><td>충격 고려</td><td>3,855.3 × 0.7 × 1.3</td><td class="num"><b>3,508.3 kN</b></td></tr>
+      </tbody>
+    </table>
+    <h3>4.2 접지압 q (kN/m²)</h3>
+    <table>
+      <thead><tr><th>구분</th><th>계산</th><th class="num">접지압 (kN/m²)</th></tr></thead>
+      <tbody>
+        <tr><td>주행시 q₀</td><td>5,011.9 / (2 × 11.21)</td><td class="num"><b>223.6</b></td></tr>
+        <tr class="hi"><td>작업시 q₁ (붐⊥궤도) ★최대</td><td>5,011.9 / (0.6 × 11.21)</td><td class="num"><b>745.3</b></td></tr>
+        <tr><td>붐 45° 전면 q₃</td><td>5,011.9 × 1.4 / (0.9 × 11.21)</td><td class="num"><b>695.6</b></td></tr>
+        <tr><td>붐 45° 후면 q₄</td><td>5,011.9 × 0.6 / (0.9 × 11.21)</td><td class="num"><b>298.1</b></td></tr>
+      </tbody>
+    </table>
+    <p class="note">※ 위 §3·§4 표는 기준조건(인양물 63t · 자중 330t · b 1.2m)의 고정 산정값입니다. 다른 조건의 결과는 상단 자동 재계산기를 사용하세요.</p>
+  </section>
+
+  <!-- ================= 5. 결론 ================= -->
+  <section class="card pagebreak">
+    <h2>5. 결론</h2>
+    <blockquote class="concl">
+      <div>최대 접지압 <b>q₁ ≈ 745 kN/m²</b> (작업시, 붐이 무한궤도와 직교)</div>
+      <div>최대 접지하중 <b>Pmax ≈ 3,508 kN</b> (충격 고려)</div>
+    </blockquote>
+    <ul>
+      <li>검증: 자중만의 평균 접지압 = 3,237.3 / (2 × 11.21) = <b>144 kN/m²</b> → 400톤급 크롤러 통상범위(120~200 kN/m²)와 부합.</li>
+      <li>본 접지압(745 kN/m²)은 지반 허용지내력과 비교하여 <b>q₁ ≤ qa</b> 조건을 만족해야 하며, 일반 토사·자갈 지반(허용지내력 100~300 kN/m²)에서는 초과하므로 <b>고임목/철판 등 지반 보강(하중 분산)이 필요</b>하다. (※ 보강 설계는 본 검토 범위 외)</li>
+    </ul>
+  </section>
+
+  <!-- ================= 6. 재계산 방법 ================= -->
+  <section class="card pagebreak">
+    <h2>6. 인양물 하중 변경 시 재계산 방법</h2>
+    <h3>6.1 고정값 (장비·지반 구성 동일 시)</h3>
+    <div class="formula">W (자중)        = 3,237.3 kN   (330 ton, 풀 카운터웨이트 구성)
+A (접지면적)    = 11.21 m²     (= 9.34 m × 1.2 m, 한쪽 궤도)
+충격계수        = 1.3</div>
+    <h3>6.2 절차</h3>
+    <ol>
+      <li><b>인양물 중량 G(ton) 입력</b> → W1 = G × 9.81 (kN)</li>
+      <li><b>총 작용하중</b> V = W + W1 (kN)</li>
+      <li><b>최대접지하중</b> Pmax = V × 0.7 × 1.3 (kN)</li>
+      <li><b>최대접지압(지배)</b> q₁ = 1.3 × V / (0.6 × A) = 1.3 × V / 6.726 (kN/m²)<br>
+          <span class="note">기타: q₀ = 1.3V/(2A), q₃ = 1.3V×1.4/(0.9A), q₄ = 1.3V×0.6/(0.9A)</span></li>
+      <li><b>허용지내력 qa 와 비교</b>: q₁ ≤ qa → 만족 / 초과 시 지반 보강 검토</li>
+    </ol>
+    <blockquote>자중 구성(카운터웨이트·붐길이)이 바뀌면 §3.2의 W를 갱신할 것.<br>
+      슈폭 1.5m 옵션 적용 시 A = 9.34 × 1.5 = 14.01 m²로 재계산(접지압 약 20% 감소).</blockquote>
+
+    <h3>6.3 인양물 하중별 결과표 <span class="note">(자동 — 현재 입력 자중 W=<span class="live" id="tbl_W">330</span>t · b=<span class="live" id="tbl_b">1.2</span>m 기준)</span></h3>
+    <table id="sweepTable">
+      <thead><tr>
+        <th class="num">인양물 G (ton)</th><th class="num">W1 (kN)</th>
+        <th class="num">V = W+W1 (kN)</th><th class="num">Pmax 충격고려 (kN)</th>
+        <th class="num">최대접지압 q₁ (kN/m²)</th>
+      </tr></thead>
+      <tbody><!-- JS가 채움 --></tbody>
+    </table>
+    <p class="note">※ 위 표의 굵게 표시된 행은 현재 계산기에 입력된 인양물 G 값입니다.</p>
+  </section>
+
+  <!-- ================= 7. 비고 ================= -->
+  <section class="card pagebreak">
+    <h2>7. 비고 / 가정사항</h2>
+    <ol>
+      <li>자중 W=330t는 <b>풀 카운터웨이트(보수적 최대) 가정값</b>이며, 접지압은 V에 비례한다. 실제 양중계획의 카운터웨이트·붐길이가 확정되면 해당 자중으로 갱신한다.</li>
+      <li>메인붐 중량(약 20t)은 추정치이다(전체 자중의 약 6%).</li>
+      <li>무한궤도 접지길이 L=9.34m는 측면 치수도(9340mm) 기준이며, 전장(10385mm)과 구분된다.</li>
+      <li>본 검토는 접지압 산정에 한하며, 지반 지내력 평가·철판 보강 설계는 포함하지 않는다.</li>
+    </ol>
+  </section>
+
+  <footer>크롤러 크레인 접지압 검토 · KOSHA GUIDE C-99-2015 [방법1] · 자동 재계산 HTML</footer>
+</div>
+
+<script>
+  "use strict";
+  var g = 9.81;
+  var DEFAULTS = { G:63, W:330, L:9.34, b:1.2, imp:1.3 };
+  var SWEEP = [40, 50, 63, 80, 100, 120];
+
+  function $(id){ return document.getElementById(id); }
+  function num(id){ var v = parseFloat($(id).value); return isFinite(v) ? v : 0; }
+  function fmt(x, d){
+    if(!isFinite(x)) return "–";
+    return x.toLocaleString("en-US",{minimumFractionDigits:d, maximumFractionDigits:d});
+  }
+
+  // 핵심 계산식 (접지압_재계산.py 와 동일 로직)
+  function calc(G_ton, W_ton, L, b, imp){
+    var A  = L * b;
+    var W  = W_ton * g;
+    var W1 = G_ton * g;
+    var V  = W + W1;
+    return {
+      A:A, V:V,
+      Pmax_no:  V * 0.7,
+      Pmax_imp: V * 0.7 * imp,
+      qo: imp * V / (2 * A),
+      q1: imp * V / (0.6 * A),
+      q3: imp * V * 0.7 * 2 / (0.9 * A),
+      q4: imp * V * 0.3 * 2 / (0.9 * A)
+    };
+  }
+
+  function update(){
+    var G=num("G"), W=num("W"), L=num("L"), b=num("b"), imp=num("imp");
+    var r = calc(G, W, L, b, imp);
+
+    $("r_A").textContent   = fmt(r.A,3);
+    $("r_V").textContent   = fmt(r.V,1);
+    $("r_pno").textContent = fmt(r.Pmax_no,1);
+    $("r_pimp").textContent= fmt(r.Pmax_imp,1);
+    $("r_qo").textContent  = fmt(r.qo,1);
+    $("r_q1").textContent  = fmt(r.q1,1);
+    $("r_q3").textContent  = fmt(r.q3,1);
+    $("r_q4").textContent  = fmt(r.q4,1);
+
+    // §6.3 결과표 갱신 (현재 자중·슈폭·충격계수 기준)
+    $("tbl_W").textContent = fmt(W,0).replace(/\.0+$/,"");
+    $("tbl_b").textContent = b;
+    var rows = SWEEP.slice();
+    if(rows.indexOf(G) === -1 && G > 0){ rows.push(G); rows.sort(function(a,bb){return a-bb;}); }
+    var tb = document.querySelector("#sweepTable tbody");
+    tb.innerHTML = "";
+    rows.forEach(function(gi){
+      var rr = calc(gi, W, L, b, imp);
+      var tr = document.createElement("tr");
+      if(gi === G) tr.className = "hi";
+      tr.innerHTML =
+        '<td class="num">'+ fmt(gi,0).replace(/\.0+$/,"") +'</td>'+
+        '<td class="num">'+ fmt(gi*g,1) +'</td>'+
+        '<td class="num">'+ fmt(rr.V,1) +'</td>'+
+        '<td class="num">'+ fmt(rr.Pmax_imp,1) +'</td>'+
+        '<td class="num">'+ fmt(rr.q1,1) +'</td>';
+      tb.appendChild(tr);
+    });
+  }
+
+  function resetVals(){
+    $("G").value=DEFAULTS.G; $("W").value=DEFAULTS.W;
+    $("L").value=DEFAULTS.L; $("b").value=DEFAULTS.b; $("imp").value=DEFAULTS.imp;
+    update();
+  }
+
+  ["G","W","L","b","imp"].forEach(function(id){
+    $(id).addEventListener("input", update);
+    $(id).addEventListener("change", update);
+  });
+  update();
+</script>
+</body>
+</html>
