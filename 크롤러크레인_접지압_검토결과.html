@@ -17,6 +17,9 @@
     line-height:1.6; font-size:15px;
   }
   .wrap{max-width:980px; margin:0 auto; padding:24px 20px 80px;}
+  /* iframe 임베드 시 글영역 폭을 꽉 채움 */
+  body.embed{background:transparent;}
+  body.embed .wrap{max-width:none; padding:8px 12px 24px;}
   header.doc{
     background:linear-gradient(135deg,var(--accent),#10355f);
     color:#fff; border-radius:14px; padding:26px 28px; margin-bottom:22px;
@@ -419,7 +422,11 @@ A (접지면적)    = 11.21 m²     (= 9.34 m × 1.2 m, 한쪽 궤도)
   });
   update();
 
-  // ===== iframe 임베드용: 부모 페이지에 문서 높이 전송 (티스토리 등) =====
+  // ===== iframe 임베드용 =====
+  // iframe 안이면 글영역 폭을 꽉 쓰도록 embed 클래스 부여
+  if(window.parent !== window){ document.body.classList.add("embed"); }
+
+  // 부모 페이지에 문서 높이 전송 (티스토리 등)
   function postHeight(){
     if(window.parent === window) return; // iframe 안이 아니면 무시
     var h = Math.max(
