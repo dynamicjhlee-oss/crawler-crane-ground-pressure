@@ -418,6 +418,23 @@ A (접지면적)    = 11.21 m²     (= 9.34 m × 1.2 m, 한쪽 궤도)
     $(id).addEventListener("change", update);
   });
   update();
+
+  // ===== iframe 임베드용: 부모 페이지에 문서 높이 전송 (티스토리 등) =====
+  function postHeight(){
+    if(window.parent === window) return; // iframe 안이 아니면 무시
+    var h = Math.max(
+      document.documentElement.scrollHeight,
+      document.body.scrollHeight
+    );
+    window.parent.postMessage({ ggp_height: h }, "*");
+  }
+  window.addEventListener("load", postHeight);
+  window.addEventListener("resize", postHeight);
+  if(window.ResizeObserver){
+    new ResizeObserver(postHeight).observe(document.body);
+  } else {
+    setInterval(postHeight, 800); // 구형 브라우저 폴백
+  }
 </script>
 </body>
 </html>
